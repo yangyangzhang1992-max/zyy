@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement a modular C library for RISC-V secure boot image verification using ECDSA signatures with embedded public key.
+**Goal:** Implement a modular C library for RISC-V secure boot image verification using ECDSA signatures with embedded public key, **accelerated via RISC-V K extension (Zk)**.
 
-**Architecture:** Modular design with separate hash, ECDSA, and verification modules. Uses mbedTLS for cryptographic primitives. Hash computation covers header + image data. Signature is stored after image data.
+**Architecture:** Modular design with separate hash, ECDSA, and verification modules. Hash uses K extension intrinsics when available, falls back to mbedTLS. ECDSA uses mbedTLS. Hash computation covers header + image data. Signature is stored after image data.
 
-**Tech Stack:** C (C11), mbedTLS (ECDSA P-256/P-384), RISC-V target with GCC/Clang
+**Tech Stack:** C (C11), RISC-V K extension intrinsics + mbedTLS (ECDSA P-256/P-384), RISC-V target with GCC
 
 ---
 
@@ -20,12 +20,15 @@ secure_boot/
 │   ├── ecdsa.h             # ECDSA interface
 │   └── verify.h            # Main verification interface
 ├── src/
-│   ├── hash.c              # Hash implementation (SHA-256/SHA-384)
+│   ├── hash.c              # Hash implementation (K extension + mbedTLS fallback)
 │   ├── ecdsa.c              # ECDSA verification via mbedTLS
 │   ├── verify.c             # Main verification entry point
 │   └── image_tool.c         # Image packaging utility
 ├── keys/
 │   └── ecdsa_pubkey.h      # Embedded ECDSA public key
+├── thirdparty/
+│   ├── riscv-crypto/        # K extension intrinsics
+│   └── mbedtls/             # mbedTLS library
 ├── Makefile
 └── README.md
 ```
@@ -831,28 +834,37 @@ git commit -m "docs(secure_boot): add README documentation"
 
 ---
 
-## Task 8: Integrate mbedTLS
+## Task 8: Integrate riscv-crypto and mbedTLS
 
 **Files:**
-- Create: `secure_boot/thirdparty/mbedtls` (submodule or fetch)
+- Create: `secure_boot/thirdparty/riscv-crypto` (submodule)
+- Create: `secure_boot/thirdparty/mbedtls` (submodule)
 
-- [ ] **Step 1: Add mbedTLS as submodule**
+- [ ] **Step 1: Add riscv-crypto as submodule**
 
 ```bash
 cd secure_boot
+git submodule add https://github.com/riscv/riscv-crypto.git thirdparty/riscv-crypto
+```
+
+- [ ] **Step 2: Add mbedTLS as submodule**
+
+```bash
 git submodule add https://github.com/Mbed-TLS/mbedtls.git thirdparty/mbedtls
 cd thirdparty/mbedtls && git checkout v3.6.0
 ```
 
-- [ ] **Step 2: Update Makefile with mbedTLS build**
+- [ ] **Step 3: Verify K extension intrinsics**
 
-Add mbedTLS library compilation to the Makefile.
+Check that `thirdparty/riscv-crypto/benchmarks/share/riscv-crypto-intrinsics.h` contains SHA intrinsics:
+- `_sha256sig0`, `_sha256sig1`, `_sha256sum0`, `_sha256sum1` (RV32/RV64)
+- `_sha512sig0`, `_sha512sig1`, `_sha512sum0`, `_sha512sum1` (RV64)
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add secure_boot/thirdparty/mbedtls
-git commit -m "feat(secure_boot): add mbedTLS as submodule"
+git add secure_boot/thirdparty/
+git commit -m "feat(secure_boot): add riscv-crypto and mbedTLS submodules"
 ```
 
 ---
@@ -866,7 +878,7 @@ git commit -m "feat(secure_boot): add mbedTLS as submodule"
 5. **Task 5**: Create public key header
 6. **Task 6**: Create image tool
 7. **Task 7**: Create README and finalize build
-8. **Task 8**: Integrate mbedTLS
+8. **Task 8**: Integrate riscv-crypto (K extension) and mbedTLS
 
 ---
 
@@ -879,3 +891,4 @@ After implementation, verify:
 3. Code follows the design spec
 4. Headers are self-contained and consistent
 5. Public key placeholder is clearly marked for replacement
+6. K extension intrinsics are used when compiling with `-march=rv64gc_zk`
